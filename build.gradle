@@ -1,0 +1,187 @@
+subprojects {
+    apply plugin: 'maven-publish'
+    group = 'dev.errnicraft'
+    repositories {
+        maven { url 'https://maven.fabricmc.net/' }
+        mavenCentral()
+    }
+}
+
+def clientVersionProjects = [
+        '1.20.1', '1.20.2', '1.20.4', '1.20.6',
+        '1.21.1', '1.21.3', '1.21.4', '1.21.5', '1.21.6',
+        '1.21.7', '1.21.8', '1.21.9', '1.21.10', '1.21.11',
+        '26.1.2', '26.2'
+]
+
+task runVersion {
+    group = 'clientsync'
+    description = "Runs the Minecraft client for a single version. Usage: gradlew runVersion -Pversion=1.21.11"
+    doFirst {
+        if (!project.hasProperty('version') || !clientVersionProjects.contains(project.property('version'))) {
+            throw new GradleException("Specify -Pversion=<one of ${clientVersionProjects}>")
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    if (project.hasProperty('version') && clientVersionProjects.contains(project.property('version'))) {
+        def target = project(":versions:${project.property('version')}")
+        runVersion.dependsOn(target.tasks.named('runClient'))
+    }
+}
+
+clientVersionProjects.each { v ->
+    task "runVersion${v.replace('.', '_')}" {
+        group = 'clientsync'
+        description = "Runs the Minecraft client for version ${v}"
+        dependsOn ":versions:${v}:runClient"
+    }
+}
+
+task generateMergedModJson {
+    def outDir = layout.buildDirectory.dir('generated/mergedMod')
+    outputs.dir(outDir)
+    doLast {
+        def f = outDir.get().file('fabric.mod.json').asFile
+        f.parentFile.mkdirs()
+        f.text = """\
+{
+  "schemaVersion": 1,
+  "id": "clientsync_multiloader",
+  "version": "1.0.0",
+  "name": "ClientSync",
+  "description": "Client-side companion for the ClientSync modpack installer, keeping your mods and files synced with the server.",
+  "authors": ["Errnick_"],
+  "license": "MIT",
+  "environment": "*",
+  "icon": "assets/clientsync/icon.png",
+  "jars": [
+    {"file": "META-INF/jars/clientsync-1.20.1.jar"},
+    {"file": "META-INF/jars/clientsync-1.20.2.jar"},
+    {"file": "META-INF/jars/clientsync-1.20.4.jar"},
+    {"file": "META-INF/jars/clientsync-1.20.6.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.1.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.3.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.4.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.5.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.6.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.7.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.8.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.9.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.10.jar"},
+    {"file": "META-INF/jars/clientsync-1.21.11.jar"},
+    {"file": "META-INF/jars/clientsync-26.1.2.jar"},
+    {"file": "META-INF/jars/clientsync-26.2.jar"}
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "fabric-api": "*"
+  }
+}
+"""
+    }
+}
+
+task build(type: Jar, dependsOn: [
+        ':versions:1.20.1:remapJar',
+        ':versions:1.20.2:remapJar',
+        ':versions:1.20.4:remapJar',
+        ':versions:1.20.6:remapJar',
+        ':versions:1.21.1:remapJar',
+        ':versions:1.21.3:remapJar',
+        ':versions:1.21.4:remapJar',
+        ':versions:1.21.5:remapJar',
+        ':versions:1.21.6:remapJar',
+        ':versions:1.21.7:remapJar',
+        ':versions:1.21.8:remapJar',
+        ':versions:1.21.9:remapJar',
+        ':versions:1.21.10:remapJar',
+        ':versions:1.21.11:remapJar',
+        ':versions:26.1.2:jar',
+        ':versions:26.2:jar',
+        ':installer-app:shadowJar',
+        generateMergedModJson
+]) {
+    group             = 'clientsync'
+    description       = 'JiJ main build'
+    archiveBaseName   = 'clientsync-1.0.0+1.20-26.2'
+    archiveClassifier = ''
+    archiveVersion    = ''
+    destinationDirectory = layout.buildDirectory.dir('libs')
+
+    from({ project(':versions:1.20.1').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.20.1.jar' }
+    }
+    from({ project(':versions:1.20.2').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.20.2.jar' }
+    }
+    from({ project(':versions:1.20.4').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.20.4.jar' }
+    }
+    from({ project(':versions:1.20.6').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.20.6.jar' }
+    }
+    from({ project(':versions:1.21.1').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.1.jar' }
+    }
+    from({ project(':versions:1.21.3').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.3.jar' }
+    }
+    from({ project(':versions:1.21.4').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.4.jar' }
+    }
+    from({ project(':versions:1.21.5').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.5.jar' }
+    }
+    from({ project(':versions:1.21.6').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.6.jar' }
+    }
+    from({ project(':versions:1.21.7').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.7.jar' }
+    }
+    from({ project(':versions:1.21.8').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.8.jar' }
+    }
+    from({ project(':versions:1.21.9').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.9.jar' }
+    }
+    from({ project(':versions:1.21.10').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.10.jar' }
+    }
+    from({ project(':versions:1.21.11').tasks.remapJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-1.21.11.jar' }
+    }
+    from({ project(':versions:26.1.2').tasks.jar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-26.1.2.jar' }
+    }
+    from({ project(':versions:26.2').tasks.jar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-26.2.jar' }
+    }
+    from({ project(':installer-app').tasks.shadowJar.archiveFile }) {
+        into 'META-INF/jars/'
+        rename { 'clientsync-installer.jar' }
+    }
+    from(generateMergedModJson.outputs) {
+        include 'fabric.mod.json'
+    }
+    from(project(':versions:1.21.11').file('src/main/resources/assets/clientsync/icon.png')) {
+        into 'assets/clientsync/'
+    }
+}
