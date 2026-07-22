@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Zavřít hru kvůli instalaci modpacku?",
+  "clientsync.confirm.message": "Instalátor se spustí samostatně. Po dokončení budete moci hru znovu spustit z launcheru.",
+  "clientsync.confirm.yes": "OK",
+  "clientsync.error.title": "Instalátor se nepodařilo spustit",
+  "clientsync.error.ok": "OK",
+  "clientsync.error.installer_not_found": "Vestavěný instalátor nebyl nalezen",
+  "clientsync.error.installer_exited_early": "Instalátor se ukončil hned po spuštění",
+  "clientsync.error.installer_launch_failed": "Nepodařilo se spustit instalátor"
+}

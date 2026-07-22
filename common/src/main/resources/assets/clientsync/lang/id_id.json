@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Tutup permainan untuk menginstal modpack?",
+  "clientsync.confirm.message": "Installer akan dijalankan secara terpisah. Setelah selesai, Anda dapat menjalankan kembali permainan melalui launcher.",
+  "clientsync.confirm.yes": "OK",
+  "clientsync.error.title": "Gagal menjalankan installer",
+  "clientsync.error.ok": "OK",
+  "clientsync.error.installer_not_found": "Installer bawaan tidak ditemukan",
+  "clientsync.error.installer_exited_early": "Installer langsung berhenti setelah dijalankan",
+  "clientsync.error.installer_launch_failed": "Gagal menjalankan installer"
+}

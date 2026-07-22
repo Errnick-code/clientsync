@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "إغلاق اللعبة لتثبيت حزمة التعديلات؟",
+  "clientsync.confirm.message": "سيتم تشغيل المُثبِّت بشكل منفصل. بعد الانتهاء، يمكنك تشغيل اللعبة مرة أخرى عبر المشغّل.",
+  "clientsync.confirm.yes": "موافق",
+  "clientsync.error.title": "تعذر تشغيل المُثبِّت",
+  "clientsync.error.ok": "موافق",
+  "clientsync.error.installer_not_found": "لم يتم العثور على المُثبِّت المدمج",
+  "clientsync.error.installer_exited_early": "توقف المُثبِّت فور تشغيله",
+  "clientsync.error.installer_launch_failed": "تعذر تشغيل المُثبِّت"
+}

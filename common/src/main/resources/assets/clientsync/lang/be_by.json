@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Закрыць гульню для ўстаноўкі модпака?",
+  "clientsync.confirm.message": "Усталёўшчык запусціцца асобна. Пасля завяршэння вы зможаце зноў запусціць гульню праз лаунчар.",
+  "clientsync.confirm.yes": "Добра",
+  "clientsync.error.title": "Не ўдалося запусціць усталёўшчык",
+  "clientsync.error.ok": "Добра",
+  "clientsync.error.installer_not_found": "Убудаваны ўсталёўшчык не знойдзены",
+  "clientsync.error.installer_exited_early": "Усталёўшчык завяршыўся адразу пасля запуску",
+  "clientsync.error.installer_launch_failed": "Не ўдалося запусціць усталёўшчык"
+}

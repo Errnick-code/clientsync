@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "모드팩을 설치하기 위해 게임을 종료하시겠습니까?",
+  "clientsync.confirm.message": "설치 프로그램이 별도로 실행됩니다. 완료되면 런처를 통해 게임을 다시 시작할 수 있습니다.",
+  "clientsync.confirm.yes": "확인",
+  "clientsync.error.title": "설치 프로그램을 실행하지 못했습니다",
+  "clientsync.error.ok": "확인",
+  "clientsync.error.installer_not_found": "내장된 설치 프로그램을 찾을 수 없습니다",
+  "clientsync.error.installer_exited_early": "설치 프로그램이 실행 직후 종료되었습니다",
+  "clientsync.error.installer_launch_failed": "설치 프로그램을 실행하지 못했습니다"
+}

@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Đóng trò chơi để cài đặt modpack?",
+  "clientsync.confirm.message": "Trình cài đặt sẽ khởi chạy riêng. Sau khi hoàn tất, bạn có thể khởi động lại trò chơi qua launcher.",
+  "clientsync.confirm.yes": "OK",
+  "clientsync.error.title": "Không thể khởi chạy trình cài đặt",
+  "clientsync.error.ok": "OK",
+  "clientsync.error.installer_not_found": "Không tìm thấy trình cài đặt được nhúng sẵn",
+  "clientsync.error.installer_exited_early": "Trình cài đặt đã thoát ngay sau khi khởi chạy",
+  "clientsync.error.installer_launch_failed": "Không thể khởi chạy trình cài đặt"
+}

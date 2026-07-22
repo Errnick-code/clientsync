@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Modpackをインストールするためにゲームを終了しますか？",
+  "clientsync.confirm.message": "インストーラーが別途起動します。完了後、ランチャーからゲームを再度起動できます。",
+  "clientsync.confirm.yes": "OK",
+  "clientsync.error.title": "インストーラーを起動できませんでした",
+  "clientsync.error.ok": "OK",
+  "clientsync.error.installer_not_found": "組み込みのインストーラーが見つかりません",
+  "clientsync.error.installer_exited_early": "インストーラーが起動直後に終了しました",
+  "clientsync.error.installer_launch_failed": "インストーラーを起動できませんでした"
+}

@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Stänga spelet för att installera modpacket?",
+  "clientsync.confirm.message": "Installationsprogrammet startas separat. När det är klart kan du starta spelet igen via launchern.",
+  "clientsync.confirm.yes": "OK",
+  "clientsync.error.title": "Det gick inte att starta installationsprogrammet",
+  "clientsync.error.ok": "OK",
+  "clientsync.error.installer_not_found": "Inbyggt installationsprogram hittades inte",
+  "clientsync.error.installer_exited_early": "Installationsprogrammet avslutades direkt efter start",
+  "clientsync.error.installer_launch_failed": "Det gick inte att starta installationsprogrammet"
+}

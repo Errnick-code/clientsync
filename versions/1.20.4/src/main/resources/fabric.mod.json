@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "clientsync",
+  "version": "${version}",
+  "name": "ClientSync",
+  "description": "Client-side companion for the ClientSync modpack installer, keeping your mods and files synced with the server.",
+  "authors": [
+    "Errnick_"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.errnicraft.clientsync.server.ServerModInit"
+    ],
+    "client": [
+      "dev.errnicraft.clientsync.ClientSyncMod"
+    ]
+  },
+  "mixins": [
+    "clientsync.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "fabric-api": "*",
+    "minecraft": "1.20.4"
+  },
+  "icon": "assets/clientsync/icon.png"
+}
