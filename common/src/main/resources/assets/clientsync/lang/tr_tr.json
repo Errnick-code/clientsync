@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Modpack'i kurmak için oyun kapatılsın mı?",
+  "clientsync.confirm.message": "Kurulum ayrı olarak başlayacak. Tamamlandığında oyunu başlatıcıdan tekrar başlatabilirsiniz.",
+  "clientsync.confirm.yes": "Tamam",
+  "clientsync.error.title": "Kurulum başlatılamadı",
+  "clientsync.error.ok": "Tamam",
+  "clientsync.error.installer_not_found": "Gömülü kurulum bulunamadı",
+  "clientsync.error.installer_exited_early": "Kurulum başlar başlamaz sona erdi",
+  "clientsync.error.installer_launch_failed": "Kurulum başlatılamadı"
+}

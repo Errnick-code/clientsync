@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "Модпакты орнату үшін ойынды жабу керек пе?",
+  "clientsync.confirm.message": "Орнатушы бөлек іске қосылады. Аяқталғаннан кейін ойынды лаунчер арқылы қайта іске қоса аласыз.",
+  "clientsync.confirm.yes": "Жарайды",
+  "clientsync.error.title": "Орнатушыны іске қосу мүмкін болмады",
+  "clientsync.error.ok": "Жарайды",
+  "clientsync.error.installer_not_found": "Ішіне енгізілген орнатушы табылмады",
+  "clientsync.error.installer_exited_early": "Орнатушы іске қосылған соң бірден аяқталды",
+  "clientsync.error.installer_launch_failed": "Орнатушыны іске қосу мүмкін болмады"
+}

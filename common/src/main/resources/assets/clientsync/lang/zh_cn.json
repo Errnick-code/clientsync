@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "关闭游戏以安装整合包？",
+  "clientsync.confirm.message": "安装程序将单独启动。完成后，您可以通过启动器重新启动游戏。",
+  "clientsync.confirm.yes": "确定",
+  "clientsync.error.title": "无法启动安装程序",
+  "clientsync.error.ok": "确定",
+  "clientsync.error.installer_not_found": "未找到内置安装程序",
+  "clientsync.error.installer_exited_early": "安装程序启动后立即退出",
+  "clientsync.error.installer_launch_failed": "无法启动安装程序"
+}

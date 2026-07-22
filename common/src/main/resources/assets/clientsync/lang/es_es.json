@@ -1,0 +1,11 @@
+{
+  "clientsync.button.tooltip": "ClientSync",
+  "clientsync.confirm.title": "¿Cerrar el juego para instalar el modpack?",
+  "clientsync.confirm.message": "El instalador se abrirá por separado. Cuando termine, podrá volver a iniciar el juego desde el launcher.",
+  "clientsync.confirm.yes": "OK",
+  "clientsync.error.title": "No se pudo iniciar el instalador",
+  "clientsync.error.ok": "OK",
+  "clientsync.error.installer_not_found": "No se encontró el instalador integrado",
+  "clientsync.error.installer_exited_early": "El instalador se cerró inmediatamente tras iniciarse",
+  "clientsync.error.installer_launch_failed": "No se pudo iniciar el instalador"
+}
