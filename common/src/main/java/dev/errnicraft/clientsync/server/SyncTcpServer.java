@@ -35,6 +35,9 @@ public class SyncTcpServer {
     }
 
     public int getPort() {
+        if (serverSocket != null && serverSocket.isBound()) {
+            return serverSocket.getLocalPort();
+        }
         return port;
     }
 
@@ -85,6 +88,7 @@ public class SyncTcpServer {
              DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
 
             socket.setTcpNoDelay(true);
+            socket.setSoTimeout(SyncProtocol.IDLE_TIMEOUT_MS);
 
             while (running) {
                 int magic;
@@ -104,6 +108,7 @@ public class SyncTcpServer {
                     case SyncProtocol.OP_GET_MANIFEST -> handleGetManifest(in, out);
                     case SyncProtocol.OP_GET_BATCH -> handleGetBatch(in, out);
                     case SyncProtocol.OP_GET_CHUNK -> handleGetChunk(in, out);
+                    case SyncProtocol.OP_GET_AUTO_SCOPE -> handleGetAutoScope(out);
                     default -> {
                         writeStatus(out, SyncProtocol.STATUS_ERROR);
                         return;
@@ -124,8 +129,33 @@ public class SyncTcpServer {
         out.writeInt(config.chunk_size_mb);
         writeString(out, config.loader);
         writeString(out, config.loader_version);
+        writeString(out, config.pack_version == null ? "" : config.pack_version);
         String clientIp = socket.getInetAddress() != null ? socket.getInetAddress().getHostAddress() : "unknown";
-        LOGGER.info("[ClientSync] Client {} requested manifest for version {}", clientIp, config.mc_version);
+        LOGGER.info("[ClientSync] Ping from {} (mc {}, loader {} {})",
+                clientIp, config.mc_version, config.loader, config.loader_version);
+    }
+
+    private void handleGetAutoScope(DataOutputStream out) throws IOException {
+        java.util.List<String> scope = new java.util.ArrayList<>();
+        if (config.auto_update != null) {
+            for (String raw : config.auto_update) {
+                String entry = normalizeScopeEntry(raw);
+                if (!entry.isEmpty() && !scope.contains(entry)) {
+                    scope.add(entry);
+                }
+            }
+        }
+        writeStatus(out, SyncProtocol.STATUS_OK);
+        out.writeInt(scope.size());
+        for (String entry : scope) writeString(out, entry);
+    }
+
+    private static String normalizeScopeEntry(String raw) {
+        if (raw == null) return "";
+        String entry = raw.trim().replace('\\', '/');
+        while (entry.startsWith("/")) entry = entry.substring(1);
+        while (entry.endsWith("/")) entry = entry.substring(0, entry.length() - 1);
+        return entry;
     }
 
     private void handleGetIndex(DataOutputStream out) throws IOException {
@@ -150,16 +180,17 @@ public class SyncTcpServer {
 
     private void handleGetManifest(DataInputStream in, DataOutputStream out) throws IOException {
         String name = readString(in);
-        if (name.isEmpty() || name.contains("..")) {
-            writeStatus(out, SyncProtocol.STATUS_NOT_FOUND);
-            return;
-        }
-        Path file = serverDir.resolve("clientsync/manifests").resolve(name);
-        if (!Files.exists(file) || !Files.isRegularFile(file)) {
+        Path base = serverDir.resolve("clientsync/manifests").normalize();
+        Path file = name.isEmpty() ? null : base.resolve(name).normalize();
+        if (file == null || !file.startsWith(base) || !Files.isRegularFile(file)) {
             writeStatus(out, SyncProtocol.STATUS_NOT_FOUND);
             return;
         }
         byte[] bytes = Files.readAllBytes(file);
+        if (bytes.length > SyncProtocol.MAX_MANIFEST_BYTES) {
+            writeStatus(out, SyncProtocol.STATUS_ERROR);
+            return;
+        }
         writeStatus(out, SyncProtocol.STATUS_OK);
         out.writeInt(bytes.length);
         out.write(bytes);
@@ -167,6 +198,10 @@ public class SyncTcpServer {
 
     private void handleGetBatch(DataInputStream in, DataOutputStream out) throws IOException {
         int count = in.readInt();
+        if (count < 0 || count > SyncProtocol.MAX_BATCH_FILES) {
+            writeStatus(out, SyncProtocol.STATUS_ERROR);
+            return;
+        }
         String[] rels = new String[count];
         for (int i = 0; i < count; i++) rels[i] = readString(in);
 
@@ -174,8 +209,15 @@ public class SyncTcpServer {
         out.writeInt(count);
         for (String rel : rels) {
             Path file = resolveClientFile(rel);
-            if (file == null || !Files.exists(file) || !Files.isRegularFile(file)) {
+            if (file == null || !Files.isRegularFile(file)) {
                 out.writeByte(SyncProtocol.STATUS_NOT_FOUND);
+                writeString(out, rel);
+                out.writeLong(0);
+                continue;
+            }
+            long size = Files.size(file);
+            if (size > SyncProtocol.MAX_BATCH_FILE_BYTES) {
+                out.writeByte(SyncProtocol.STATUS_ERROR);
                 writeString(out, rel);
                 out.writeLong(0);
                 continue;
@@ -194,13 +236,13 @@ public class SyncTcpServer {
         long length = in.readLong();
 
         Path file = resolveClientFile(rel);
-        if (file == null || !Files.exists(file) || !Files.isRegularFile(file)) {
+        if (file == null || !Files.isRegularFile(file)) {
             writeStatus(out, SyncProtocol.STATUS_NOT_FOUND);
             return;
         }
 
         long fileSize = Files.size(file);
-        if (offset < 0 || offset + length > fileSize) {
+        if (offset < 0 || length < 0 || offset > fileSize || length > fileSize - offset) {
             writeStatus(out, SyncProtocol.STATUS_ERROR);
             return;
         }
@@ -223,8 +265,11 @@ public class SyncTcpServer {
     }
 
     private Path resolveClientFile(String rel) {
-        if (rel.isEmpty() || rel.contains("..")) return null;
-        return serverDir.resolve("clientsync/client").resolve(rel);
+        if (rel == null || rel.isEmpty()) return null;
+        Path base = serverDir.resolve("clientsync/client").normalize();
+        Path file = base.resolve(rel).normalize();
+        if (!file.startsWith(base)) return null;
+        return file;
     }
 
     private static void writeStatus(DataOutputStream out, byte status) throws IOException {
@@ -239,6 +284,9 @@ public class SyncTcpServer {
 
     private static String readString(DataInputStream in) throws IOException {
         int len = in.readInt();
+        if (len < 0 || len > SyncProtocol.MAX_STRING_BYTES) {
+            throw new IOException("Invalid string length: " + len);
+        }
         byte[] bytes = new byte[len];
         in.readFully(bytes);
         return new String(bytes, StandardCharsets.UTF_8);

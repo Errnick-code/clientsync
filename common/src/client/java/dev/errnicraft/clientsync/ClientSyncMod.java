@@ -1,5 +1,6 @@
 package dev.errnicraft.clientsync;
 
+import dev.errnicraft.clientsync.installer.AutoUpdateChecker;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,5 +13,6 @@ public class ClientSyncMod implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("[ClientSync] Loaded.");
+        AutoUpdateChecker.runPreLaunchCheck();
     }
 }

@@ -1,9 +1,10 @@
 package dev.errnicraft.clientsync.installer;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
-public class ProgressPanel extends JPanel {
+public class ProgressPanel extends JPanel implements Theme.ThemeAware {
 
     private final String lang;
     private final JProgressBar progressBar = new JProgressBar(0, 100);
@@ -21,8 +22,6 @@ public class ProgressPanel extends JPanel {
         statusLabel.setText(I18n.get(lang, "pp_preparing"));
         statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
 
-        progressBar.setStringPainted(true);
-
         logArea.setEditable(false);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         JScrollPane logScroll = new JScrollPane(logArea);
@@ -32,24 +31,32 @@ public class ProgressPanel extends JPanel {
         doneButton.setEnabled(false);
         doneButton.addActionListener(e -> onDone.run());
 
-        JPanel top = new JPanel(new BorderLayout(4, 4));
+        progressBar.setStringPainted(false);
+        progressBar.putClientProperty("JProgressBar.largeHeight", true);
+        progressBar.setPreferredSize(new Dimension(200, 14));
+
+        JPanel top = new JPanel(new BorderLayout(4, 8));
+        top.setOpaque(false);
         top.add(statusLabel, BorderLayout.NORTH);
         top.add(progressBar, BorderLayout.SOUTH);
 
         speedLabel.setText(formatSpeed(0));
         speedLabel.setFont(speedLabel.getFont().deriveFont(12f));
-        speedLabel.setForeground(Color.GRAY);
         etaLabel.setText(I18n.get(lang, "pp_eta_prefix") + I18n.get(lang, "pp_eta_dash"));
         etaLabel.setFont(etaLabel.getFont().deriveFont(12f));
-        etaLabel.setForeground(Color.GRAY);
+
+        retheme();
 
         JPanel speedEtaPanel = new JPanel(new GridLayout(2, 1));
+        speedEtaPanel.setOpaque(false);
         speedEtaPanel.setPreferredSize(new Dimension(140, speedEtaPanel.getPreferredSize().height));
         speedEtaPanel.add(speedLabel);
         speedEtaPanel.add(etaLabel);
 
         JPanel bottom = new JPanel(new BorderLayout());
+        bottom.setOpaque(false);
         JPanel bottomRight = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottomRight.setOpaque(false);
         bottomRight.add(doneButton);
         bottom.add(speedEtaPanel, BorderLayout.WEST);
         bottom.add(bottomRight, BorderLayout.EAST);
@@ -59,15 +66,24 @@ public class ProgressPanel extends JPanel {
         add(bottom, BorderLayout.SOUTH);
     }
 
+    @Override
+    public void retheme() {
+        speedLabel.setForeground(Theme.textSecondary());
+        etaLabel.setForeground(Theme.textSecondary());
+    }
+
+    private String statusBase;
+
     public void setStatus(String text) {
+        this.statusBase = text;
         SwingUtilities.invokeLater(() -> statusLabel.setText(text));
     }
 
     public void setProgress(int done, int total) {
-        int pct = total <= 0 ? 100 : Math.min(100, done * 100 / total);
+        double progress = total <= 0 ? 1.0 : Math.min(1.0, (double) done / total);
         SwingUtilities.invokeLater(() -> {
-            progressBar.setValue(pct);
-            progressBar.setString(done + " / " + total);
+            progressBar.setValue((int) Math.round(progress * progressBar.getMaximum()));
+            statusLabel.setText(statusBase + "  " + done + " / " + total);
         });
     }
 
@@ -115,10 +131,10 @@ public class ProgressPanel extends JPanel {
     }
 
     public void complete(String finalMessage) {
+        this.statusBase = finalMessage;
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText(finalMessage);
-            progressBar.setValue(100);
-            progressBar.setString(I18n.get(lang, "pp_done"));
+            progressBar.setValue(progressBar.getMaximum());
             doneButton.setEnabled(true);
         });
     }

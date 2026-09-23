@@ -2,7 +2,7 @@ plugins {
     id 'fabric-loom' version "1.14-SNAPSHOT"
 }
 
-version = '1.0.0+1.21.9'
+version = '1.1.0+1.21.9'
 base { archivesName = 'clientsync' }
 
 loom {

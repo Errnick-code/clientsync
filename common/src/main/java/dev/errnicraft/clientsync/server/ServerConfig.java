@@ -12,12 +12,13 @@ public class ServerConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public int port = 25566;
-    public String host = "CHANGE_ME";
     public String mc_version = "";
     public String loader = "fabric";
     public String loader_version = "";
     public int max_concurrent_tasks = 20;
     public int chunk_size_mb = 10;
+    public String pack_version = "";
+    public java.util.List<String> auto_update = new java.util.ArrayList<>();
 
     public static ServerConfig load(Path serverDir) throws IOException {
         Path path = configPath(serverDir);
@@ -43,6 +44,8 @@ public class ServerConfig {
         }
         if (cfg.max_concurrent_tasks <= 0) cfg.max_concurrent_tasks = 20;
         if (cfg.chunk_size_mb <= 0) cfg.chunk_size_mb = 10;
+        if (cfg.pack_version == null) cfg.pack_version = "";
+        if (cfg.auto_update == null) cfg.auto_update = new java.util.ArrayList<>();
         return cfg;
     }
 

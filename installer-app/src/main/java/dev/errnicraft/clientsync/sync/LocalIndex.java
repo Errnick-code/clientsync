@@ -68,21 +68,88 @@ public class LocalIndex {
             if (folder.equals("mods") || folder.isEmpty()) continue;
             scanFolder(folder, gameDir.resolve(folder));
         }
+        for (var f : manifest.files) {
+            if (f.path.indexOf('/') < 0) indexRootFile(f.path);
+        }
+        if (manifest.removed != null) {
+            for (var r : manifest.removed) {
+                if ("FILE".equals(r.category) && r.key.indexOf('/') < 0) indexRootFile(r.key);
+            }
+        }
+    }
+
+    public void loadForScoped(SyncManifest manifest) {
+        mods.clear();
+        modsByModId.clear();
+        files.clear();
+
+        boolean needMods = (manifest.mods != null && !manifest.mods.isEmpty());
+        if (!needMods && manifest.removed != null) {
+            for (var r : manifest.removed) {
+                if ("MOD".equals(r.category)) {
+                    needMods = true;
+                    break;
+                }
+            }
+        }
+        if (needMods) scanMods(gameDir.resolve("mods"));
+
+        if (manifest.files != null) {
+            for (var f : manifest.files) {
+                if (f.path.indexOf('/') < 0) {
+                    indexRootFile(f.path);
+                } else {
+                    indexSingleFile(f.path);
+                }
+            }
+        }
+        if (manifest.removed != null) {
+            for (var r : manifest.removed) {
+                if (!"FILE".equals(r.category)) continue;
+                if (r.key.indexOf('/') < 0) {
+                    indexRootFile(r.key);
+                } else {
+                    indexSingleFile(r.key);
+                }
+            }
+        }
+    }
+
+    private void indexSingleFile(String relPath) {
+        if (relPath == null || relPath.isEmpty()) return;
+        Path base = gameDir.toAbsolutePath().normalize();
+        Path file = base.resolve(relPath).normalize();
+        if (!file.startsWith(base)) return;
+        if (Files.isRegularFile(file)) {
+            files.put(relPath, new FileEntry(safeSha256(file), file));
+        }
+    }
+
+    private void indexRootFile(String name) {
+        if (name == null || name.isEmpty()) return;
+        Path base = gameDir.toAbsolutePath().normalize();
+        Path file = base.resolve(name).normalize();
+        if (!file.startsWith(base) || file.getParent() == null || !file.getParent().equals(base)) return;
+        if (Files.isRegularFile(file)) {
+            files.put(name, new FileEntry(safeSha256(file), file));
+        }
     }
 
     private List<String> foldersOf(SyncManifest manifest) {
         List<String> result = new ArrayList<>();
         for (var f : manifest.files) {
             int slash = f.path.indexOf('/');
-            String folder = slash < 0 ? f.path : f.path.substring(0, slash);
+            if (slash < 0) continue;
+            String folder = f.path.substring(0, slash);
             if (!result.contains(folder)) result.add(folder);
         }
         if (manifest.removed != null) {
             for (var r : manifest.removed) {
                 if (!"FILE".equals(r.category)) continue;
                 int slash = r.key.indexOf('/');
-                String folder = slash < 0 ? r.key : r.key.substring(0, slash);
-                if (!folder.isEmpty() && !result.contains(folder)) result.add(folder);
+                if (slash < 0) continue;
+                String folder = r.key.substring(0, slash);
+                if (!result.contains(folder)) result.add(folder);
             }
         }
         return result;
@@ -157,7 +224,13 @@ public class LocalIndex {
     private String safeSha256(Path file) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(Files.readAllBytes(file));
+            try (InputStream stream = Files.newInputStream(file)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = stream.read(buf)) > 0) {
+                    digest.update(buf, 0, n);
+                }
+            }
             return HexFormat.of().formatHex(digest.digest());
         } catch (Exception e) {
             return "";

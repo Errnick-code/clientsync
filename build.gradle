@@ -49,7 +49,7 @@ task generateMergedModJson {
 {
   "schemaVersion": 1,
   "id": "clientsync_multiloader",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "ClientSync",
   "description": "Client-side companion for the ClientSync modpack installer, keeping your mods and files synced with the server.",
   "authors": ["Errnick_"],
@@ -105,7 +105,7 @@ task build(type: Jar, dependsOn: [
 ]) {
     group             = 'clientsync'
     description       = 'JiJ main build'
-    archiveBaseName   = 'clientsync-1.0.0+1.20-26.2'
+    archiveBaseName   = 'clientsync-1.1.0+1.20-26.2'
     archiveClassifier = ''
     archiveVersion    = ''
     destinationDirectory = layout.buildDirectory.dir('libs')

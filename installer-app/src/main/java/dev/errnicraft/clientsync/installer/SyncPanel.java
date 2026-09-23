@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SyncPanel extends JPanel {
+public class SyncPanel extends JPanel implements Theme.ThemeAware {
 
     private static class NodeInfo {
         final String name;
@@ -64,8 +64,9 @@ public class SyncPanel extends JPanel {
     private final DefaultListModel<String> diffListModel = new DefaultListModel<>();
     private final JLabel summaryLabel = new JLabel(" ");
     private final JLabel diskSpaceLabel = new JLabel(" ");
-    private final JButton installButton = new JButton();
-    private final JButton installMenuButton = new JButton("▾");
+    private final Ui.SplitAccentButton installSplit = new Ui.SplitAccentButton();
+    private final JButton installButton = installSplit.mainButton();
+    private final JButton installMenuButton = installSplit.menuButton();
     private final java.util.Set<String> permanentlyExcluded;
     private final java.util.function.BiConsumer<String, Boolean> onPermanentExcludeChanged;
 
@@ -116,17 +117,9 @@ public class SyncPanel extends JPanel {
         bottom.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
         summaryLabel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         diskSpaceLabel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-        diskSpaceLabel.setForeground(Color.GRAY);
+        diskSpaceLabel.setForeground(Theme.textSecondary());
         diskSpaceLabel.setFont(diskSpaceLabel.getFont().deriveFont(11f));
 
-        installMenuButton.setMargin(new Insets(4, 6, 4, 6));
-        installButton.setMargin(new Insets(4, 10, 4, 10));
-        installMenuButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 1, 1, Color.GRAY),
-                BorderFactory.createEmptyBorder(4, 6, 4, 6)));
-        installButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 1, 1, 1, Color.GRAY),
-                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
         JPopupMenu installMenu = new JPopupMenu();
         JMenuItem cleanItem = new JMenuItem(I18n.get(lang, "sp_clean_install_item"));
         cleanItem.addActionListener(e -> enableCleanInstallMode());
@@ -135,13 +128,9 @@ public class SyncPanel extends JPanel {
 
         installButton.addActionListener(e -> onInstallWithMode.accept(collectExcludedKeys(root), cleanInstallMode));
 
-        JPanel installButtonsRow = new JPanel(new BorderLayout(0, 0));
-        installButtonsRow.add(installButton, BorderLayout.CENTER);
-        installButtonsRow.add(installMenuButton, BorderLayout.EAST);
-
-        JPanel installButtons = new JPanel(new BorderLayout());
-        installButtons.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-        installButtons.add(installButtonsRow, BorderLayout.SOUTH);
+        JPanel installButtons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 0, 0));
+        installButtons.setOpaque(false);
+        installButtons.add(installSplit);
 
         JPanel bottomLeft = new JPanel(new GridLayout(2, 1));
         bottomLeft.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
@@ -156,6 +145,14 @@ public class SyncPanel extends JPanel {
         add(bottom, BorderLayout.SOUTH);
 
         refreshDiffPanel();
+    }
+
+    @Override
+    public void retheme() {
+        Color textOnAccent = Theme.textOnAccent();
+        installButton.setForeground(textOnAccent);
+        installMenuButton.setForeground(textOnAccent);
+        installSplit.repaint();
     }
 
     private void enableCleanInstallMode() {
@@ -195,7 +192,7 @@ public class SyncPanel extends JPanel {
 
         if (free < 0) {
             diskSpaceLabel.setText(I18n.get(lang, "sp_required_free_unknown").replace("{required}", humanSize(required)));
-            installButton.setEnabled(!diff.isEmpty());
+            setInstallEnabled(!diff.isEmpty());
             return;
         }
 
@@ -203,13 +200,19 @@ public class SyncPanel extends JPanel {
         diskSpaceLabel.setText(I18n.get(lang, "sp_required_free")
                 .replace("{required}", humanSize(required))
                 .replace("{free}", humanSize(free)));
-        diskSpaceLabel.setForeground(enough ? Color.GRAY : Color.RED);
-        installButton.setEnabled(!diff.isEmpty() && enough);
+        diskSpaceLabel.setForeground(enough ? Theme.textSecondary() : Theme.danger());
+        setInstallEnabled(!diff.isEmpty() && enough);
         if (!enough) {
             installButton.setToolTipText(I18n.get(lang, "sp_low_disk_space"));
         } else {
             installButton.setToolTipText(null);
         }
+    }
+
+    private void setInstallEnabled(boolean enabled) {
+        installSplit.setEnabled(enabled);
+        installButton.setEnabled(enabled);
+        installMenuButton.setEnabled(enabled);
     }
 
     private java.util.Set<String> collectExcludedKeys(DefaultMutableTreeNode node) {
@@ -392,26 +395,26 @@ public class SyncPanel extends JPanel {
                     checkBox.setSelected(state != CheckState.UNSELECTED);
                 }
                 checkBox.setEnabled(true);
-                Color fg = getForeground();
+                Color fg = Theme.textPrimary();
                 if (info.changeType != null) {
                     fg = switch (info.changeType) {
-                        case MISSING -> new Color(0, 128, 0);
-                        case UPDATE, REPAIR -> new Color(200, 120, 0);
-                        case STALE -> Color.RED;
+                        case MISSING -> Theme.success();
+                        case UPDATE, REPAIR -> Theme.warn();
+                        case STALE -> Theme.danger();
                         default -> fg;
                     };
                 }
                 if (state == CheckState.PARTIAL) {
-                    fg = Color.GRAY;
+                    fg = Theme.textSecondary();
                 } else if (state == CheckState.UNSELECTED && info.isFile) {
-                    fg = Color.GRAY;
+                    fg = Theme.textSecondary();
                 }
                 if (info.excludedForever) {
-                    fg = Color.GRAY;
+                    fg = Theme.textSecondary();
                 }
                 label.setForeground(fg);
             }
-            setBackground(sel ? new Color(180, 210, 250) : tree.getBackground());
+            setBackground(sel ? Theme.selectionBg() : tree.getBackground());
             invalidate();
             validate();
             return this;
@@ -441,14 +444,14 @@ public class SyncPanel extends JPanel {
             int h = getIconHeight();
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.RED);
+            g2.setColor(Theme.danger());
             g2.fillRect(x, y, w, h);
             g2.setColor(Color.WHITE);
             g2.setStroke(new BasicStroke(2f));
             int pad = Math.max(3, w / 4);
             g2.drawLine(x + pad, y + pad, x + w - pad, y + h - pad);
             g2.drawLine(x + w - pad, y + pad, x + pad, y + h - pad);
-            g2.setColor(Color.DARK_GRAY);
+            g2.setColor(Theme.border());
             g2.drawRect(x, y, w - 1, h - 1);
             g2.dispose();
         }

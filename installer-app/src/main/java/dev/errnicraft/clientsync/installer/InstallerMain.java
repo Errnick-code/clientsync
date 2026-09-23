@@ -21,6 +21,7 @@ public class InstallerMain {
     private static final String CARD_SYNC = "sync";
     private static final String CARD_PROGRESS = "progress";
     private static final String CARD_VERSION_MISMATCH = "version_mismatch";
+    private static final String CARD_AUTO_CHECK = "auto_check";
 
     private final Path gameDir = Path.of("").toAbsolutePath();
     private final Preferences prefs = Preferences.userNodeForPackage(InstallerMain.class);
@@ -45,18 +46,35 @@ public class InstallerMain {
     private String clientVersion = "unknown";
     private final String clientLoader;
     private final String clientLoaderVersion;
+    private String mismatchKind;
+    private final String autoAddress;
+    private final long gamePid;
 
     public static void main(String[] args) {
         String version = args.length > 0 ? args[0] : "unknown";
         String loader = args.length > 1 ? args[1] : "unknown";
         String loaderVersion = args.length > 2 ? args[2] : "unknown";
+        String autoAddress = null;
+        long gamePid = 0;
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--auto-update".equals(args[i])) {
+                autoAddress = args[i + 1];
+            } else if ("--game-pid".equals(args[i])) {
+                try {
+                    gamePid = Long.parseLong(args[i + 1]);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        final String autoAddr = autoAddress;
+        final long gPid = gamePid;
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
             System.err.println("[ClientSync-Installer] Uncaught exception in thread " + t.getName() + ":");
             e.printStackTrace();
         });
         SwingUtilities.invokeLater(() -> {
             try {
-                new InstallerMain(version, loader, loaderVersion).start();
+                new InstallerMain(version, loader, loaderVersion, autoAddr, gPid).start();
             } catch (Throwable e) {
                 System.err.println("[ClientSync-Installer] Failed to start installer UI:");
                 e.printStackTrace();
@@ -64,15 +82,20 @@ public class InstallerMain {
         });
     }
 
-    public InstallerMain(String clientVersion, String clientLoader, String clientLoaderVersion) {
+    public InstallerMain(String clientVersion, String clientLoader, String clientLoaderVersion, String autoAddress, long gamePid) {
         this.clientVersion = clientVersion;
         this.clientLoader = clientLoader;
         this.clientLoaderVersion = clientLoaderVersion;
+        this.autoAddress = autoAddress;
+        this.gamePid = gamePid;
     }
 
     private void start() {
         String lang = prefs.get("language", null);
         if (lang == null) lang = I18n.detectSystemLang();
+        Theme.Mode themeMode = loadThemeMode();
+        Theme.setMode(themeMode);
+        Theme.apply();
         String loaderLabel;
         boolean hasLoaderInfo = clientLoader != null && !clientLoader.isBlank() && !"unknown".equals(clientLoader)
                 && clientLoaderVersion != null && !clientLoaderVersion.isBlank() && !"unknown".equals(clientLoaderVersion);
@@ -98,17 +121,56 @@ public class InstallerMain {
 
         String savedAddress = prefs.get("server_address", "");
         String savedLang = prefs.get("language", null);
+        boolean savedAutoUpdate = !"false".equals(prefs.get("auto_update_on_launch", "true"));
         List<String> history = loadAddressHistory();
-        addressPanel = new AddressPanel(savedAddress, savedLang, history, this::onConnect, this::onLangChange, this::onAddressHistoryChanged);
+        addressPanel = new AddressPanel(savedAddress, savedLang, themeMode, history, this::onConnect, this::onLangChange,
+                this::onThemeChange, this::onAddressHistoryChanged, savedAutoUpdate, this::onAutoUpdateChange);
         cards.add(addressPanel, CARD_ADDRESS);
 
         frame.setContentPane(cards);
+        frame.getContentPane().setBackground(Theme.bg());
+        Theme.retheme(addressPanel);
+
+        if (autoAddress != null && !autoAddress.isBlank()) {
+            JPanel checkPanel = new JPanel(new BorderLayout());
+            checkPanel.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
+            JLabel label = new JLabel(I18n.get(addressPanel.currentLang(), "auto_update_checking"), SwingConstants.CENTER);
+            label.setFont(label.getFont().deriveFont(14f));
+            checkPanel.add(label, BorderLayout.CENTER);
+            cards.add(checkPanel, CARD_AUTO_CHECK);
+            cardLayout.show(cards, CARD_AUTO_CHECK);
+            frame.setVisible(true);
+            runAutoUpdate(autoAddress);
+            return;
+        }
+
         cardLayout.show(cards, CARD_ADDRESS);
         frame.setVisible(true);
     }
 
+    private Theme.Mode loadThemeMode() {
+        String saved = prefs.get("theme", null);
+        if (saved == null) return Theme.Mode.SYSTEM;
+        try {
+            return Theme.Mode.valueOf(saved);
+        } catch (IllegalArgumentException e) {
+            return Theme.Mode.SYSTEM;
+        }
+    }
+
+    private void onThemeChange(Theme.Mode mode) {
+        prefs.put("theme", mode.name());
+        Theme.setMode(mode);
+        Theme.apply();
+        Theme.retheme(frame.getContentPane());
+    }
+
     private void onLangChange(String lang) {
         prefs.put("language", lang);
+    }
+
+    private void onAutoUpdateChange(boolean enabled) {
+        prefs.put("auto_update_on_launch", enabled ? "true" : "false");
     }
 
     private static final String HISTORY_SEPARATOR = "\n";
@@ -183,6 +245,7 @@ public class InstallerMain {
     }
 
     private void onConnect(String address) {
+        String[] mismatch = new String[1];
         new SwingWorker<Void, Void>() {
             String error;
 
@@ -197,14 +260,20 @@ public class InstallerMain {
                         System.out.println("[ClientSync] ping failed: " + error);
                         return null;
                     }
-                    System.out.println("[ClientSync] ping ok, fetching manifest");
+                    System.out.println("[ClientSync] ping ok, checking versions");
+                    mismatch[0] = checkMismatch();
+                    if (mismatch[0] != null) {
+                        System.out.println("[ClientSync] mismatch detected: " + mismatch[0]);
+                        return null;
+                    }
+                    System.out.println("[ClientSync] versions match, fetching manifest");
                     manifest = ManifestFetcher.fetch(address);
 
                     LocalIndex index = new LocalIndex(gameDir);
                     index.loadForManifest(manifest);
                     localIndex = index;
-                    diff = new java.util.ArrayList<>(DiffCalculator.calculate(manifest, index));
-                    diff.addAll(DiffCalculator.calculateRemoved(manifest, index));
+                    diff = mergeDiffs(DiffCalculator.calculate(manifest, index),
+                            DiffCalculator.calculateRemoved(manifest, index));
                     System.out.println("[ClientSync] onConnect done, diff size=" + diff.size());
                 } catch (Throwable e) {
                     error = I18n.get(addressPanel.currentLang(), "im_connect_failed").replace("{error}", String.valueOf(e.getMessage()));
@@ -220,38 +289,81 @@ public class InstallerMain {
                     addressPanel.showError(error);
                     return;
                 }
+                if ("version".equals(mismatch[0])) {
+                    showVersionMismatch(clientVersion, serverVersionText());
+                    return;
+                }
+                if ("loader".equals(mismatch[0])) {
+                    showLoaderMismatch(clientLoader, clientLoaderVersion,
+                            serverLoaderText(), serverLoaderVersionText());
+                    return;
+                }
                 serverAddress = address;
                 prefs.put("server_address", address);
                 addressPanel.addToHistory(address);
-
-                String serverVersion = ManifestFetcher.lastPingInfo != null
-                        ? ManifestFetcher.lastPingInfo.mcVersion : "";
-                if (!serverVersion.isBlank() && !serverVersion.equals(clientVersion)) {
-                    showVersionMismatch(clientVersion, serverVersion);
-                    return;
-                }
-
-                String serverLoader = ManifestFetcher.lastPingInfo != null
-                        ? ManifestFetcher.lastPingInfo.loader : "";
-                String serverLoaderVersionReq = ManifestFetcher.lastPingInfo != null
-                        ? ManifestFetcher.lastPingInfo.loaderVersion : "";
-                if (!serverLoader.isBlank() && clientLoader != null && !clientLoader.isBlank()
-                        && !"unknown".equals(clientLoader) && !serverLoader.equalsIgnoreCase(clientLoader)) {
-                    showLoaderMismatch(clientLoader, clientLoaderVersion, serverLoader, serverLoaderVersionReq);
-                    return;
-                }
-                if (!serverLoaderVersionReq.isBlank() && clientLoaderVersion != null
-                        && !clientLoaderVersion.isBlank() && !"unknown".equals(clientLoaderVersion)
-                        && !dev.errnicraft.clientsync.net.LoaderVersionMatcher.matches(serverLoaderVersionReq, clientLoaderVersion)) {
-                    showLoaderMismatch(clientLoader, clientLoaderVersion, serverLoader, serverLoaderVersionReq);
-                    return;
-                }
 
                 logPackVersionComparison();
 
                 showSyncPanel();
             }
         }.execute();
+    }
+
+    private String checkMismatch() {
+        String serverVersion = serverVersionText();
+        if (!serverVersion.isBlank() && !serverVersion.equals(clientVersion)) {
+            return "version";
+        }
+
+        String serverLoader = serverLoaderText();
+        String serverLoaderVersionReq = serverLoaderVersionText();
+        if (!serverLoader.isBlank() && clientLoader != null && !clientLoader.isBlank()
+                && !"unknown".equals(clientLoader) && !serverLoader.equalsIgnoreCase(clientLoader)) {
+            return "loader";
+        }
+        if (!serverLoaderVersionReq.isBlank() && clientLoaderVersion != null
+                && !clientLoaderVersion.isBlank() && !"unknown".equals(clientLoaderVersion)
+                && !dev.errnicraft.clientsync.net.LoaderVersionMatcher.matches(serverLoaderVersionReq, clientLoaderVersion)) {
+            return "loader";
+        }
+        return null;
+    }
+
+    private static String serverVersionText() {
+        return ManifestFetcher.lastPingInfo != null
+                ? ManifestFetcher.lastPingInfo.mcVersion : "";
+    }
+
+    private static String serverLoaderText() {
+        return ManifestFetcher.lastPingInfo != null
+                ? ManifestFetcher.lastPingInfo.loader : "";
+    }
+
+    private static String serverLoaderVersionText() {
+        return ManifestFetcher.lastPingInfo != null
+                ? ManifestFetcher.lastPingInfo.loaderVersion : "";
+    }
+
+    private List<DiffEntry> mergeDiffs(List<DiffEntry> installDiff, List<DiffEntry> removedDiff) {
+        java.util.Set<String> installKeys = new java.util.HashSet<>();
+        for (DiffEntry d : installDiff) {
+            if (d.type != DiffEntry.Type.STALE) {
+                installKeys.add(d.category + ":" + d.key);
+            }
+        }
+
+        List<DiffEntry> merged = new java.util.ArrayList<>(installDiff);
+
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (DiffEntry d : installDiff) seen.add(d.category + ":" + d.key);
+
+        for (DiffEntry d : removedDiff) {
+            String key = d.category + ":" + d.key;
+            if (installKeys.contains(key)) continue;
+            if (!seen.add(key)) continue;
+            merged.add(d);
+        }
+        return merged;
     }
 
     private void showVersionMismatch(String clientVersion, String serverVersion) {
@@ -402,6 +514,10 @@ public class InstallerMain {
             return;
         }
 
+        performInstall(filteredDiff);
+    }
+
+    private void performInstall(List<DiffEntry> installDiff) {
         phase = Phase.DOWNLOADING;
 
         String lang = addressPanel.currentLang();
@@ -427,7 +543,7 @@ public class InstallerMain {
                     FileInstaller installer = new FileInstaller(
                             gameDir, manifest, serverAddress, maxConcurrentTasks, chunkBytes);
 
-                    long totalBytes = filteredDiff.stream()
+                    long totalBytes = installDiff.stream()
                             .filter(d -> d.type != DiffEntry.Type.STALE)
                             .mapToLong(d -> d.size)
                             .sum();
@@ -454,7 +570,7 @@ public class InstallerMain {
                     }, 1000, 1000);
 
                     try {
-                        installer.downloadToCache(filteredDiff, new FileInstaller.ProgressCallback() {
+                        installer.downloadToCache(installDiff, new FileInstaller.ProgressCallback() {
                             @Override
                             public void onProgress(int done, int total, String currentKey) {
                                 progressPanel.setProgress(done, total);
@@ -520,6 +636,119 @@ public class InstallerMain {
                     savePackVersion();
                     progressPanel.complete(I18n.get(lang, "im_status_done_success"));
                 }
+            }
+        }.execute();
+    }
+
+    private void runAutoUpdate(String address) {
+        String[] mismatch = new String[1];
+        new SwingWorker<Void, Void>() {
+            String error;
+
+            @Override
+            protected Void doInBackground() {
+                try {
+                    System.out.println("[ClientSync] auto-update: connecting to " + address);
+                    if (!ManifestFetcher.ping(address)) {
+                        error = ManifestFetcher.getLastError() != null
+                            ? ManifestFetcher.getLastError()
+                            : I18n.get(addressPanel.currentLang(), "im_ping_failed");
+                        System.out.println("[ClientSync] auto-update: ping failed: " + error);
+                        return null;
+                    }
+                    mismatch[0] = checkMismatch();
+                    if (mismatch[0] != null) {
+                        System.out.println("[ClientSync] auto-update: mismatch detected, exiting with error code");
+                        System.exit(2);
+                        return null;
+                    }
+                    manifest = ManifestFetcher.fetch(address);
+
+                    java.util.List<String> scope = ManifestFetcher.fetchAutoScope(address);
+                    if (!dev.errnicraft.clientsync.sync.ScopeFilter.hasScope(scope)) {
+                        System.out.println("[ClientSync] auto-update: server has no auto-update scope, nothing to do");
+                        diff = java.util.List.of();
+                        return null;
+                    }
+                    dev.errnicraft.clientsync.model.SyncManifest scoped = dev.errnicraft.clientsync.sync.ScopeFilter.filter(manifest, scope);
+                    LocalIndex index = new LocalIndex(gameDir);
+                    index.loadForScoped(scoped);
+                    localIndex = index;
+                    diff = mergeDiffs(DiffCalculator.calculate(scoped, index),
+                            DiffCalculator.calculateRemoved(scoped, index));
+                    System.out.println("[ClientSync] auto-update done, scoped diff size=" + diff.size());
+                } catch (Throwable e) {
+                    error = I18n.get(addressPanel.currentLang(), "im_connect_failed").replace("{error}", String.valueOf(e.getMessage()));
+                    System.out.println("[ClientSync] auto-update exception: " + e);
+                    e.printStackTrace();
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                if (error != null) {
+                    System.out.println("[ClientSync] auto-update: failed, exiting with error code");
+                    System.exit(1);
+                    return;
+                }
+                serverAddress = address;
+                prefs.put("server_address", address);
+
+                if (diff.isEmpty()) {
+                    System.out.println("[ClientSync] auto-update: nothing to update, exiting quietly");
+                    frame.dispose();
+                    System.exit(0);
+                    return;
+                }
+
+                logPackVersionComparison();
+                System.out.println("[ClientSync] auto-update: installing " + diff.size() + " changes");
+                frame.setVisible(true);
+                stopGameIfRunningAndInstall();
+            }
+        }.execute();
+    }
+
+    private void stopGameIfRunningAndInstall() {
+        if (gamePid <= 0) {
+            performInstall(diff);
+            return;
+        }
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                try {
+                    ProcessHandle game = ProcessHandle.of(gamePid).orElse(null);
+                    if (game == null || !game.isAlive()) {
+                        System.out.println("[ClientSync] auto-update: game process already gone");
+                        return null;
+                    }
+                    System.out.println("[ClientSync] auto-update: stopping game pid=" + gamePid);
+                    game.destroy();
+                    long deadline = System.currentTimeMillis() + 30_000;
+                    while (game.isAlive() && System.currentTimeMillis() < deadline) {
+                        java.util.concurrent.TimeUnit.MILLISECONDS.sleep(100);
+                    }
+                    if (game.isAlive()) {
+                        System.out.println("[ClientSync] auto-update: game did not exit, forcing");
+                        game.destroyForcibly();
+                        deadline = System.currentTimeMillis() + 5_000;
+                        while (game.isAlive() && System.currentTimeMillis() < deadline) {
+                            java.util.concurrent.TimeUnit.MILLISECONDS.sleep(100);
+                        }
+                    }
+                    System.out.println("[ClientSync] auto-update: game stopped");
+                } catch (Throwable t) {
+                    System.out.println("[ClientSync] auto-update: error stopping game: " + t);
+                    t.printStackTrace();
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                performInstall(diff);
             }
         }.execute();
     }

@@ -49,15 +49,37 @@ public class PlanApplier {
         Path cached = Path.of(entry.cachedFile);
         if (!Files.exists(cached)) return;
 
-        Path destination = Path.of(entry.destination);
+        Path destination = resolveInsideGameDir(entry.destination);
+        if (destination == null) {
+            throw new IOException("install destination outside game directory: " + entry.destination);
+        }
         Files.createDirectories(destination.getParent());
         Files.move(cached, destination, StandardCopyOption.REPLACE_EXISTING);
     }
 
     private void applyDelete(InstallPlan.PlanEntry entry) throws IOException {
         if (entry.destination == null || entry.destination.isEmpty()) return;
-        Path target = Path.of(entry.destination);
+        Path target = resolveInsideGameDir(entry.destination);
+        if (target == null) {
+            throw new IOException("delete destination outside game directory: " + entry.destination);
+        }
         Files.deleteIfExists(target);
+    }
+
+    private Path resolveInsideGameDir(String destination) {
+        Path base = gameDir.toAbsolutePath().normalize();
+        Path d = Path.of(destination);
+        Path target;
+        if (d.isAbsolute()) {
+            target = d.normalize();
+        } else {
+            if (d.getNameCount() > 0 && d.getName(0).toString().matches("^[A-Za-z]:.*")) {
+                return null;
+            }
+            target = base.resolve(d).normalize();
+        }
+        if (!target.startsWith(base)) return null;
+        return target;
     }
 
     private void cleanupCache() {

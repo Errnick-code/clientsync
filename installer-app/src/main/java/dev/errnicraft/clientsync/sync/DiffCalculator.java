@@ -61,13 +61,20 @@ public class DiffCalculator {
         List<DiffEntry> removed = new ArrayList<>();
         if (manifest.removed == null) return removed;
 
+        java.util.Set<String> serverModIds = new java.util.HashSet<>();
+        for (ManifestMod m : manifest.mods) serverModIds.add(m.modId);
+        java.util.Set<String> serverFilePaths = new java.util.HashSet<>();
+        for (ManifestFile f : manifest.files) serverFilePaths.add(f.path);
+
         for (ManifestRemoved re : manifest.removed) {
             if ("MOD".equals(re.category)) {
+                if (serverModIds.contains(re.key)) continue;
                 for (LocalIndex.ModEntry local : index.getModsByModId(re.key)) {
                     removed.add(new DiffEntry(DiffEntry.Category.MOD, DiffEntry.Type.STALE,
                             re.key, null, local.fileName, 0, local.path));
                 }
             } else if ("FILE".equals(re.category)) {
+                if (serverFilePaths.contains(re.key)) continue;
                 LocalIndex.FileEntry local = index.getFile(re.key);
                 if (local == null) continue;
                 removed.add(new DiffEntry(DiffEntry.Category.FILE, DiffEntry.Type.STALE,

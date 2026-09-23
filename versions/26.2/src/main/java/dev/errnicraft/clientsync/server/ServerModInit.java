@@ -42,9 +42,6 @@ public class ServerModInit implements ModInitializer {
         serverDir = server.getServerDirectory();
         try {
             ServerConfig config = ServerConfig.load(serverDir);
-            if ("CHANGE_ME".equals(config.host)) {
-                LOGGER.warn("[ClientSync] host is not configured in clientsync/config.json — clients will not be able to connect. Specify the server's public IP or domain.");
-            }
             manifestBuilder = new ManifestBuilder(serverDir);
             manifestBuilder.rebuild(config);
 
@@ -99,13 +96,9 @@ public class ServerModInit implements ModInitializer {
                         "[ClientSync] Config reloaded, port changed: " + oldPort + " -> " + config.port), false);
             } else {
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                        "[ClientSync] Config reloaded. Host: " + config.host + ", port unchanged: " + config.port), false);
+                        "[ClientSync] Config reloaded. Port unchanged: " + config.port), false);
             }
 
-            if ("CHANGE_ME".equals(config.host)) {
-                ctx.getSource().sendSuccess(() -> Component.literal(
-                        "[ClientSync] Warning: host is not configured in clientsync/config.json"), false);
-            }
             return 1;
         } catch (Exception e) {
             LOGGER.error("[ClientSync] Reload failed", e);

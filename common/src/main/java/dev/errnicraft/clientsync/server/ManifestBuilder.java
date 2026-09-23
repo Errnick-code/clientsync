@@ -154,13 +154,7 @@ public class ManifestBuilder {
             }
         }
 
-        if (!newlyRemoved.isEmpty()) {
-            appendRemoved(manifestsDir, newlyRemoved);
-            for (RemovedEntry re : newlyRemoved) {
-                LOGGER.info("[ClientSync] Removal detected on server: {} '{}' ({})",
-                        re.category, re.key, re.fileName.isEmpty() ? re.key : re.fileName);
-            }
-        }
+        rewriteRemoved(manifestsDir, newlyRemoved, currentModIds, currentFilesByFolder);
     }
 
     private java.util.Map<String, String> readPreviousModIds(Path manifestsDir) {
@@ -199,28 +193,51 @@ public class ManifestBuilder {
         return result;
     }
 
-    private void appendRemoved(Path manifestsDir, List<RemovedEntry> newlyRemoved) throws IOException {
+    private void rewriteRemoved(Path manifestsDir, List<RemovedEntry> newlyRemoved,
+                                 java.util.Set<String> currentModIds,
+                                 java.util.Map<String, java.util.Set<String>> currentFilesByFolder) throws IOException {
         Path removedJson = manifestsDir.resolve("removed.json");
-        RemovedManifest manifest = new RemovedManifest();
-        if (Files.isRegularFile(removedJson)) {
-            try {
-                RemovedManifest existing = GSON.fromJson(Files.readString(removedJson), RemovedManifest.class);
-                if (existing != null && existing.removed != null) {
-                    manifest.removed.addAll(existing.removed);
-                }
-            } catch (Exception ignored) {}
+        RemovedManifest removed = loadRemoved(removedJson);
+
+        java.util.Set<String> currentKeys = new java.util.HashSet<>();
+        for (String modId : currentModIds) currentKeys.add("MOD:" + modId);
+        for (java.util.Set<String> paths : currentFilesByFolder.values()) {
+            for (String path : paths) currentKeys.add("FILE:" + path);
         }
 
-        java.util.Set<String> existingKeys = new java.util.HashSet<>();
-        for (RemovedEntry re : manifest.removed) existingKeys.add(re.category + ":" + re.key);
+        java.util.Set<String> resultKeys = new java.util.HashSet<>();
+        java.util.List<RemovedEntry> result = new ArrayList<>();
 
-        for (RemovedEntry re : newlyRemoved) {
-            if (existingKeys.add(re.category + ":" + re.key)) {
-                manifest.removed.add(re);
+        java.util.List<RemovedEntry> merged = new ArrayList<>();
+        if (removed.removed != null) merged.addAll(removed.removed);
+        merged.addAll(newlyRemoved);
+
+        for (RemovedEntry re : merged) {
+            String key = re.category + ":" + re.key;
+            if (currentKeys.contains(key)) {
+                continue;
+            }
+            if (resultKeys.add(key)) {
+                result.add(re);
             }
         }
 
-        Files.writeString(removedJson, GSON.toJson(manifest));
+        RemovedManifest out = new RemovedManifest();
+        out.removed = result;
+        Files.writeString(removedJson, GSON.toJson(out));
+    }
+
+    private RemovedManifest loadRemoved(Path removedJson) {
+        RemovedManifest result = new RemovedManifest();
+        if (!Files.isRegularFile(removedJson)) return result;
+        try {
+            String json = Files.readString(removedJson);
+            RemovedManifest parsed = GSON.fromJson(json, RemovedManifest.class);
+            if (parsed != null && parsed.removed != null) {
+                result.removed.addAll(parsed.removed);
+            }
+        } catch (Exception ignored) {}
+        return result;
     }
 
     private List<ModEntry> buildModsManifest(Path modsDir, Path manifestsDir) throws IOException {
@@ -379,7 +396,13 @@ public class ManifestBuilder {
     private static String sha256(Path file) throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(Files.readAllBytes(file));
+            try (InputStream stream = Files.newInputStream(file)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = stream.read(buf)) > 0) {
+                    digest.update(buf, 0, n);
+                }
+            }
             return HexFormat.of().formatHex(digest.digest());
         } catch (Exception e) {
             throw new IOException("sha256 failed", e);

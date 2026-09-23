@@ -82,7 +82,7 @@ public class FileInstaller {
         Map<String, DiffEntry> byRemotePath = new HashMap<>();
         List<RemoteFileRef> refs = new ArrayList<>();
         for (DiffEntry entry : toDownload) {
-            String cachedName = sanitize(entry.key) + "_" + (entry.fileName.isEmpty() ? entry.key.hashCode() : entry.fileName);
+            String cachedName = cacheName(entry);
             Path cachedPath = cacheDir.resolve(cachedName);
             preallocate(cachedPath, entry.size);
             byRemotePath.put(entry.remotePath, entry);
@@ -93,8 +93,7 @@ public class FileInstaller {
 
         Map<String, Path> cachedPaths = new ConcurrentHashMap<>();
         for (DiffEntry entry : toDownload) {
-            String cachedName = sanitize(entry.key) + "_" + (entry.fileName.isEmpty() ? entry.key.hashCode() : entry.fileName);
-            cachedPaths.put(entry.remotePath, cacheDir.resolve(cachedName));
+            cachedPaths.put(entry.remotePath, cacheDir.resolve(cacheName(entry)));
         }
 
         int workerCount = Math.min(maxConcurrentTasks, Math.max(1, tasks.size()));
@@ -198,7 +197,8 @@ public class FileInstaller {
                         ? resolveModVersion(entry.key) : "";
                 String destination = resolveDestination(entry);
                 if (isRetryPass) {
-                    plan.removeIf(pe -> pe.key != null && pe.key.equals(entry.key));
+                    plan.removeIf(pe -> !pe.delete && pe.key != null && pe.key.equals(entry.key)
+                            && pe.category != null && pe.category.equals(entry.category.name()));
                 }
                 plan.add(InstallPlan.PlanEntry.install(entry, expectedHash, version, cached.toString(), destination));
             } catch (Exception e) {
@@ -256,7 +256,13 @@ public class FileInstaller {
 
     private String sha256(Path file) throws IOException, NoSuchAlgorithmException {
         MessageDigest d = MessageDigest.getInstance("SHA-256");
-        d.update(Files.readAllBytes(file));
+        try (java.io.InputStream stream = Files.newInputStream(file)) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = stream.read(buf)) > 0) {
+                d.update(buf, 0, n);
+            }
+        }
         return HexFormat.of().formatHex(d.digest());
     }
 
@@ -279,6 +285,12 @@ public class FileInstaller {
             return gameDir.resolve("mods/" + entry.fileName).toString();
         }
         return gameDir.resolve(entry.key).toString();
+    }
+
+    private String cacheName(DiffEntry entry) {
+        String filePart = entry.fileName.isEmpty() ? String.valueOf(entry.key.hashCode()) : entry.fileName;
+        String name = sanitize(entry.key) + "_" + sanitize(filePart);
+        return name.replace("..", "_");
     }
 
     private String sanitize(String key) {

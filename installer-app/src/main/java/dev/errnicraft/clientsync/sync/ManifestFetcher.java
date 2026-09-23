@@ -72,6 +72,19 @@ public class ManifestFetcher {
         }
     }
 
+    public static List<String> fetchAutoScope(String serverAddress) {
+        try {
+            ServerAddress addr = ServerAddress.resolve(serverAddress);
+            try (SyncTcpClient client = new SyncTcpClient(addr.host, addr.port)) {
+                client.connect(5000);
+                return client.getAutoScope();
+            }
+        } catch (IOException e) {
+            debugLog("autoScope() IOException: " + e.getMessage());
+            return List.of();
+        }
+    }
+
     public static SyncManifest fetch(String serverAddress) throws IOException {
         ServerAddress addr = ServerAddress.resolve(serverAddress);
 

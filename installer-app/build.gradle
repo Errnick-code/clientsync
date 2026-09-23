@@ -3,7 +3,7 @@ plugins {
     id 'com.gradleup.shadow' version '9.4.3'
 }
 
-version = '1.0.0'
+version = '1.1.0'
 base { archivesName = 'clientsync-installer' }
 
 java {
@@ -18,6 +18,7 @@ repositories {
 
 dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.formdev:flatlaf:3.5.4'
 }
 
 jar {
@@ -43,9 +44,9 @@ task debugInstaller(type: JavaExec) {
         testDir.mkdirs()
     }
 
-    def debugVersion = project.hasProperty('mcVersion') ? project.property('mcVersion') : '1.21.11'
+    def debugVersion = project.hasProperty('mcVersion') ? project.property('mcVersion') : '26.1.2'
     def debugLoader = project.hasProperty('loader') ? project.property('loader') : 'fabric'
-    def debugLoaderVersion = project.hasProperty('loaderVersion') ? project.property('loaderVersion') : '0.19.3'
+    def debugLoaderVersion = project.hasProperty('loaderVersion') ? project.property('loaderVersion') : '0.19.5'
 
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'dev.errnicraft.clientsync.installer.InstallerMain'

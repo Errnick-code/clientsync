@@ -113,11 +113,17 @@ public class SyncTcpClient implements AutoCloseable {
         String loader = "";
         String loaderVersion = "";
         String packVersion = "";
+        int previousTimeout = socket.getSoTimeout();
         try {
-            loader = readString(in);
-            loaderVersion = readString(in);
-            packVersion = readString(in);
-        } catch (IOException ignored) {
+            socket.setSoTimeout(SyncProtocol.PING_OPTIONAL_TIMEOUT_MS);
+            try {
+                loader = readString(in);
+                loaderVersion = readString(in);
+                packVersion = readString(in);
+            } catch (IOException ignored) {
+            }
+        } finally {
+            socket.setSoTimeout(previousTimeout);
         }
         return new PingInfo(true, mcVersion, maxConcurrentTasks, chunkSizeMb, loader, loaderVersion, packVersion);
     }
@@ -128,9 +134,26 @@ public class SyncTcpClient implements AutoCloseable {
         byte status = in.readByte();
         if (status != SyncProtocol.STATUS_OK) throw new IOException("index status=" + status);
         int count = in.readInt();
+        if (count < 0 || count > SyncProtocol.MAX_INDEX_NAMES) {
+            throw new IOException("index count out of bounds: " + count);
+        }
         List<String> names = new ArrayList<>(count);
         for (int i = 0; i < count; i++) names.add(readString(in));
         return names;
+    }
+
+    public List<String> getAutoScope() throws IOException {
+        writeHeader(SyncProtocol.OP_GET_AUTO_SCOPE);
+        out.flush();
+        byte status = in.readByte();
+        if (status != SyncProtocol.STATUS_OK) return List.of();
+        int count = in.readInt();
+        if (count < 0 || count > SyncProtocol.MAX_INDEX_NAMES) {
+            throw new IOException("auto scope count out of bounds: " + count);
+        }
+        List<String> scope = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) scope.add(readString(in));
+        return scope;
     }
 
     public byte[] getManifest(String name) throws IOException {
@@ -141,6 +164,9 @@ public class SyncTcpClient implements AutoCloseable {
         if (status == SyncProtocol.STATUS_NOT_FOUND) throw new IOException("manifest not found: " + name);
         if (status != SyncProtocol.STATUS_OK) throw new IOException("manifest status=" + status);
         int len = in.readInt();
+        if (len < 0 || len > SyncProtocol.MAX_MANIFEST_BYTES) {
+            throw new IOException("manifest length out of bounds: " + len);
+        }
         byte[] bytes = new byte[len];
         in.readFully(bytes);
         return bytes;
@@ -159,12 +185,18 @@ public class SyncTcpClient implements AutoCloseable {
         byte status = in.readByte();
         if (status != SyncProtocol.STATUS_OK) throw new IOException("batch status=" + status);
         int count = in.readInt();
+        if (count < 0 || count > SyncProtocol.MAX_BATCH_FILES) {
+            throw new IOException("batch count out of bounds: " + count);
+        }
         for (int i = 0; i < count; i++) {
             byte fileStatus = in.readByte();
             String rel = readString(in);
             long len = in.readLong();
             byte[] data = null;
             if (fileStatus == SyncProtocol.STATUS_OK) {
+                if (len < 0 || len > SyncProtocol.MAX_BATCH_FILE_BYTES) {
+                    throw new IOException("batch file length out of bounds: " + len);
+                }
                 data = new byte[(int) len];
                 in.readFully(data);
             }
@@ -182,6 +214,7 @@ public class SyncTcpClient implements AutoCloseable {
         byte status = in.readByte();
         if (status != SyncProtocol.STATUS_OK) throw new IOException("chunk status=" + status + " for " + rel);
         long len = in.readLong();
+        if (len < 0) throw new IOException("chunk length negative: " + len);
 
         byte[] buf = new byte[64 * 1024];
         long remaining = len;
@@ -202,12 +235,16 @@ public class SyncTcpClient implements AutoCloseable {
 
     private static void writeString(DataOutputStream out, String s) throws IOException {
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > SyncProtocol.MAX_STRING_BYTES) throw new IOException("string too long: " + bytes.length);
         out.writeInt(bytes.length);
         out.write(bytes);
     }
 
     private static String readString(DataInputStream in) throws IOException {
         int len = in.readInt();
+        if (len < 0 || len > SyncProtocol.MAX_STRING_BYTES) {
+            throw new IOException("invalid string length: " + len);
+        }
         byte[] bytes = new byte[len];
         in.readFully(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
